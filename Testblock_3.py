@@ -13,6 +13,7 @@ from direct.task.Task import Task
 import random, sys, os, math, Battle, Monster, Players, Bag
 from pandac.PandaModules import Texture, TextureStage
 from panda3d.ai import *
+from direct.gui.OnscreenText import OnscreenText
 
 SPEED = 0.5
 
@@ -35,13 +36,15 @@ class World(DirectObject):
         self.spieler.actor.reparentTo(render)
         spielerStartPos = (-107.575, 26.6066, -0.490075)
         self.spieler.actor.setPos(spielerStartPos)
-        
+        self.textObjectSpieler = OnscreenText(text = self.spieler.name+":  "+str(self.spieler.energie)+"/"+str(self.spieler.maxenergie)+" HP", pos = (-0.90, -0.98), scale = 0.07, fg = (1,0,0,1))        
+
         # Erstellt Gegner
         
         self.gegner = Monster.Goblin(Actor("models/box.x"))
         self.gegner.actor.reparentTo(render)
         gegnerStartPos = (-45, 15, 3.3)
         self.gegner.actor.setPos(gegnerStartPos)
+        self.textObjectGegner = OnscreenText(text = str(self.gegner.name)+": "+str(self.gegner.energie)+"/"+str(self.gegner.maxenergie)+" HP", pos = (0.90, -0.98), scale = 0.07, fg = (1,0,0,1))
         
         self.floater = NodePath(PandaNode("floater"))
         self.floater.reparentTo(render)
@@ -64,6 +67,7 @@ class World(DirectObject):
 
         taskMgr.add(self.move,"moveTask")
         taskMgr.add(self.erkenneKampf,"Kampferkennung")
+        taskMgr.add(self.screentexts,"Screentexte")
 
         self.isMoving = False
 
@@ -126,11 +130,20 @@ class World(DirectObject):
     # Erkennt den Status der Eingabe
     def setKey(self, key, value):
         self.keyMap[key] = value
-    
+
+    def screentexts(self,task):
+        self.textObjectSpieler.destroy()
+        self.textObjectSpieler = OnscreenText(text = self.spieler.name+":  "+str(self.spieler.energie)+"/"+str(self.spieler.maxenergie)+" HP", pos = (-0.90, -0.98), scale = 0.07, fg = (1,0,0,1))
+        self.textObjectGegner.destroy()
+        if self.kampf == True:
+            self.textObjectGegner = OnscreenText(text = str(self.gegner.name)+": "+str(self.gegner.energie)+"/"+str(self.gegner.maxenergie)+" HP", pos = (0.90, -0.98), scale = 0.07, fg = (1,0,0,1))
+        else:
+            self.textObjectGegner = OnscreenText(text = "Kein Gegner vorhanden", pos = (0.90, -0.98), scale = 0.07, fg = (1,0,0,1))
+        return Task.cont
 
     # Mit den Pfeiltasten kann der Spieler bewegt werden
     def move(self,task):
-
+    
         # cam-left Key: Kamera nach links
         # cam-right Key: Kamera nach rechts
         base.camera.lookAt(self.spieler.actor)
@@ -292,6 +305,8 @@ class World(DirectObject):
             elif self.gegner.energie == 0:
                 self.kampf = False
                 self.gegner.actor.detachNode()
+        if self.startzeit <= 0:
+            self.startzeit = globalClock.getLongTime()
             
         
 w = World()
