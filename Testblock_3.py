@@ -280,13 +280,13 @@ class World(DirectObject):
             return Task.cont
 
     def Kampf(self,task):
-        if (((int(globalClock.getLongTime()) - int(self.startzeit)) % 3) == 0
+        if ((int(globalClock.getLongTime()) - int(self.startzeit)) % 5 == 0
         and self.kampf == True):
             erg = Battle.Kampf(self.spieler,self.gegner)
             self.spieler = erg[0]
             self.gegner = erg[1]
             self.kampf = erg[2]
-            self.startzeit += 1
+            self.startzeit -= 1
             if self.spieler.energie == 0:
                 sys.exit
             elif self.gegner.energie == 0:
