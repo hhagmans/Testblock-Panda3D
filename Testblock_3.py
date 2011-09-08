@@ -42,8 +42,17 @@ class World(DirectObject):
         
         self.gegner = Monster.Goblin(Actor("models/box.x"))
         self.gegner.actor.reparentTo(render)
-        gegnerStartPos = (-45, 15, 3.3)
-        self.gegner.actor.setPos(gegnerStartPos)
+        self.gegnerStartPos = ([(-45, 15, 3.3),
+                                (-102.375793457,-30.6321983337,0.0),
+                                (-56.927986145, -34.6329650879, -0.16748046875),
+                                (-79.6673126221,30.8231620789,2.89721679688),
+                                (-4.37648868561,30.5158863068,2.18450927734),
+                                (22.6527004242,4.99837779999,3.11364746094),
+                                (-23.8257598877,-7.87773084641,1.36920166016),
+                                (-80.6140823364,19.5769443512,4.70764160156),
+                                (-75.0773696899,-15.2991075516,6.24676513672)
+                                ])
+        self.gegner.actor.setPos(random.choice(self.gegnerStartPos))
         self.textObjectGegner = OnscreenText(text = str(self.gegner.name)+": "+str(self.gegner.energie)+"/"+str(self.gegner.maxenergie)+" HP", pos = (0.90, -0.98), scale = 0.07, fg = (1,0,0,1))
         
         self.floater = NodePath(PandaNode("floater"))
@@ -143,7 +152,7 @@ class World(DirectObject):
 
     # Mit den Pfeiltasten kann der Spieler bewegt werden
     def move(self,task):
-    
+        
         # cam-left Key: Kamera nach links
         # cam-right Key: Kamera nach rechts
         base.camera.lookAt(self.spieler.actor)
@@ -261,11 +270,11 @@ class World(DirectObject):
         # Erstellt die AI World
         self.AIworld = AIWorld(render)
  
-        self.AIchar = AICharacter("gegner",self.gegner.actor, 60, 2, 5)
+        self.AIchar = AICharacter("gegner",self.gegner.actor, 100, 0.02, 1)
         self.AIworld.addAiChar(self.AIchar)
         self.AIbehaviors = self.AIchar.getAiBehaviors()
  
-        self.AIbehaviors.wander(5, 0, 10, 1.0)
+        self.AIbehaviors.wander(360, 0, 10, 1.0)
  
         #AI World update zum Tasknamager hinzufügen       
         taskMgr.add(self.AIUpdate,"AIUpdate")
@@ -305,6 +314,10 @@ class World(DirectObject):
             elif self.gegner.energie == 0:
                 self.kampf = False
                 self.gegner.actor.detachNode()
+                self.gegner = Monster.Goblin(Actor("models/box.x"))
+                self.gegner.actor.reparentTo(render)
+                self.gegner.actor.setPos(random.choice(self.gegnerStartPos))
+                self.setAI()
         if self.startzeit <= 0:
             self.startzeit = globalClock.getLongTime()
             
