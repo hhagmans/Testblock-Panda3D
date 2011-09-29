@@ -25,7 +25,10 @@ class Tasche ():
         
     def entfernen(self,Nr,pos):      
         """Entfernen des Items an Position pos in Beutel Nr"""
-        self.inhalt[Nr].entfernen(pos)
+        try:
+            self.inhalt[Nr-1].entfernen(pos)
+        except:
+            print "Slot ist leer"
         
     def verschieben(self,altNr,neuNr,altpos,neupos):        
         """Verschieben des Items von altpos in Beutel altNr nach neupos in Beutel neuNr"""

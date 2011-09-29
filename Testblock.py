@@ -22,6 +22,8 @@ class World(DirectObject):
     def __init__(self):
 
         self.switchState = True
+        self.iAktion = "E"
+        self.altIPos = [0,0]
         self.switchCam = False
         self.kampf = False
         self.itemDa = False
@@ -77,6 +79,10 @@ class World(DirectObject):
         self.accept("arrow_up-up", self.setKey, ["forward",0])
         self.accept("a-up", self.setKey, ["cam-left",0])
         self.accept("s-up", self.setKey, ["cam-right",0])
+
+        self.accept("e", self.iAktionsHandler,["e"])
+        self.accept("v", self.iAktionsHandler,["v"])
+        self.accept("w", self.iAktionsHandler,["w"])
         
         taskMgr.add(self.move,"moveTask")
         taskMgr.add(self.erkenneKampf,"Kampferkennung")
@@ -93,6 +99,34 @@ class World(DirectObject):
         base.disableMouse()
         base.camera.setPos(self.spieler.actor.getX(),self.spieler.actor.getY()+10,2)
         
+        self.collisionInit();
+        
+        self.setAI()
+        
+        # Licht
+        ambientLight = AmbientLight("ambientLight")
+        ambientLight.setColor(Vec4(.3, .3, .3, 1))
+        directionalLight = DirectionalLight("directionalLight")
+        directionalLight.setDirection(Vec3(-5, -5, -5))
+        directionalLight.setColor(Vec4(1, 1, 1, 1))
+        directionalLight.setSpecularColor(Vec4(1, 1, 1, 1))
+        render.setLight(render.attachNewNode(ambientLight))
+        render.setLight(render.attachNewNode(directionalLight))
+
+        # Hintergrund (Himmel)
+
+        self.setupSkySphere()
+
+    def iAktionsHandler(self,key):
+        if key == "e":
+            self.iAktion = "E"
+        elif key == "w":
+            self.iAktion = "W"
+        elif key == "v":
+            self.iAktion = "V"
+            
+
+    def collisionInit(self):
         # Kollisionserkennung, um auf dem Boden zu laufen. Der Collisionray
         # erkennt die Hoehe des Gelaendes und wenn ein Objekt da ist, wird 
         # die Bewegung als illegal gewertet.
@@ -132,27 +166,12 @@ class World(DirectObject):
         self.gegnerGroundHandler = CollisionHandlerQueue()
         self.cTrav.addCollider(self.gegnerGroundColNp, self.gegnerGroundHandler)
 
-        self.setAI()
-        
-        # Licht
-        ambientLight = AmbientLight("ambientLight")
-        ambientLight.setColor(Vec4(.3, .3, .3, 1))
-        directionalLight = DirectionalLight("directionalLight")
-        directionalLight.setDirection(Vec3(-5, -5, -5))
-        directionalLight.setColor(Vec4(1, 1, 1, 1))
-        directionalLight.setSpecularColor(Vec4(1, 1, 1, 1))
-        render.setLight(render.attachNewNode(ambientLight))
-        render.setLight(render.attachNewNode(directionalLight))
-
-        # Hintergrund (Himmel)
-
-        self.setupSkySphere()
 
     def setupSkySphere(self):
         self.skysphere = loader.loadModel("models/LinearPinkSkySphere.bam")
-        #Load the texture for the sky.
+        # Textur für den Himmel laden
         self.sky_tex = loader.loadTexture("Images/Sterne.jpg")
-        #Set the sky texture to the sky model
+        # Himmel Textur konfigurieren
         self.skysphere.setTexture(self.sky_tex, 1)
 	self.skysphere.setBin('background', 1) 
         self.skysphere.setDepthWrite(0) 
@@ -171,9 +190,10 @@ class World(DirectObject):
         self.buttonListe = []
         beutelLabel = DirectLabel(text = itemListe[0][0], pos = (0.18, 0.98, 0.95), scale = 0.07, text_fg = (1,0,0,1), text_bg = (0, 50, 50, 1), textMayChange = 1)
         del itemListe [0][0]
+        aktZeile = 0
         for zeile in itemListe:
             for i in range(0,5):
-                testButton = DirectButton(text = zeile [i], pos = standardpos, scale = 0.07, text_fg = (1,0,0,1), text_bg = (0, 50, 50, 1), textMayChange = 1)
+                testButton = DirectButton(text = zeile [i], pos = standardpos, scale = 0.07, text_fg = (1,0,0,1), text_bg = (0, 50, 50, 1), textMayChange = 1, extraArgs = [aktZeile,i], command = self.inventarAktion)
                 self.buttonListe.append (testButton)
                 standardpos[0] += 0.25
             standardpos[0] = 0.18    
@@ -183,6 +203,19 @@ class World(DirectObject):
         self.myFrame = DirectFrame(frameColor=(0, 50, 50, 0.5),
                       frameSize=(-1, 1, -.7, 1),
                       pos=(1, -1, 1))
+
+    def inventarAktion(self,zeile,spalte):
+        if self.iAktion == "E":
+            self.spieler.inventar.entfernen(1,[zeile,spalte])
+            del self.buttonListe[:]
+            self.createMenu()
+        elif self.iAktion == "W":
+            self.altIPos = [zeile,spalte]
+        elif self.iAktion == "V":
+            self.spieler.inventar.verschieben(1,1,self.altIPos,[zeile,spalte])
+            del self.buttonListe[:]
+            self.createMenu()        
+        
         
     # Erkennt den Status der Eingabe
     def setKey(self, key, value):
@@ -262,6 +295,11 @@ class World(DirectObject):
 
         self.cTrav.traverse(render)
 
+        # Speichert die Startposition, damit der Spieler zurueckgesetzt
+        # werden kann, sollte er irgendwo runterfallen
+
+        startpos = self.spieler.actor.getPos()
+
         # Aendert die Z Koordinate des Spielers. Wenn er etwas trifft, bewegt
         # ihn entsprechend, wenn er nichts trifft, setzt die Koordinate 
         # auf den Stand des letzten Frames
@@ -282,10 +320,6 @@ class World(DirectObject):
         self.camera();
         self.collisions();
         
-        # Speichert die Startposition, damit der Spieler zurueckgesetzt
-        # werden kann, sollte er irgendwo runterfallen
-
-        startpos = self.spieler.actor.getPos()
 
         # Wenn einer der Move Keys gedrueckt wird, wird der Spieler
         # in die ensprechende Richtung bewegt
