@@ -9,40 +9,60 @@ from panda3d.core import Vec3,Vec4,BitMask32
 from direct.gui.OnscreenText import OnscreenText
 from direct.actor.Actor import Actor
 from direct.showbase.DirectObject import DirectObject
-import random, sys, os, math
+from direct.task.Task import Task
+import random, sys, os, math, Battle, Monster, Players, Bag, Items
 from pandac.PandaModules import Texture, TextureStage
+from panda3d.ai import *
+from direct.gui.DirectGui import *
 
 SPEED = 0.5
 
 class World(DirectObject):
 
     def __init__(self):
-        
+
+        self.switchState = True
+        self.switchCam = False
+        self.kampf = False
+        self.itemDa = False
         self.keyMap = {"left":0, "right":0, "forward":0, "cam-left":0, "cam-right":0}
         base.win.setClearColor(Vec4(0,0,0,1))
 
         self.environ = loader.loadModel("models/world")      
         self.environ.reparentTo(render)
         self.environ.setPos(0,0,0)
-        
-        # Erstellt Spieler
 
  
-        self.spieler = Actor("models/box.x")
-        self.spieler.reparentTo(render)
+        self.spieler = Players.Player(Actor("models/box.x"))
+        self.spieler.actor.reparentTo(render)
         spielerStartPos = (-107.575, 26.6066, -0.490075)
-        self.spieler.setPos(spielerStartPos)
-        
+        self.spieler.actor.setPos(spielerStartPos)
+        self.textObjectSpieler = OnscreenText(text = self.spieler.name+":  "+str(self.spieler.energie)+"/"+str(self.spieler.maxenergie)+" HP", pos = (-0.90, -0.98), scale = 0.07, fg = (1,0,0,1))        
+
         # Erstellt Gegner
         
-        self.gegner = Actor("models/box.x")
-        self.gegner.reparentTo(render)
-        gegnerStartPos = (0, 12, 3.3)
-        self.gegner.setPos(gegnerStartPos)
+        self.gegner = Monster.Goblin(Actor("models/box.x"))
+        self.gegner.actor.reparentTo(render)
+        self.gegnerStartPos = ([(-39.1143569946,25.1781406403,-0.136657714844),
+                                (-102.375793457,-30.6321983337,0.0),
+                                (-56.927986145, -34.6329650879, -0.16748046875),
+                                (-79.6673126221,30.8231620789,2.89721679688),
+                                (-4.37648868561,30.5158863068,2.18450927734),
+                                (22.6527004242,4.99837779999,3.11364746094),
+                                (-23.8257598877,-7.87773084641,1.36920166016),
+                                (-80.6140823364,19.5769443512,4.70764160156),
+                                (-75.0773696899,-15.2991075516,6.24676513672)
+                                ])
+        gegnerPos = random.choice(self.gegnerStartPos)
+        self.gegner.actor.setPos(gegnerPos)
+        self.gegnerAltPos = gegnerPos
+        self.textObjectGegner = OnscreenText(text = str(self.gegner.name)+": "+str(self.gegner.energie)+"/"+str(self.gegner.maxenergie)+" HP", pos = (0.90, -0.98), scale = 0.07, fg = (1,0,0,1))
         
         self.floater = NodePath(PandaNode("floater"))
         self.floater.reparentTo(render)
 
+        self.item = None
+        
         # Handling der Usereingaben für Bewegung
 
         self.accept("escape", sys.exit)
@@ -51,20 +71,27 @@ class World(DirectObject):
         self.accept("arrow_up", self.setKey, ["forward",1])
         self.accept("a", self.setKey, ["cam-left",1])
         self.accept("s", self.setKey, ["cam-right",1])
+        self.accept("i", self.setKey, ["inventar",1])
         self.accept("arrow_left-up", self.setKey, ["left",0])
         self.accept("arrow_right-up", self.setKey, ["right",0])
         self.accept("arrow_up-up", self.setKey, ["forward",0])
         self.accept("a-up", self.setKey, ["cam-left",0])
         self.accept("s-up", self.setKey, ["cam-right",0])
-
+        
         taskMgr.add(self.move,"moveTask")
+        taskMgr.add(self.erkenneKampf,"Kampferkennung")
+        taskMgr.add(self.screentexts,"Screentexte")
 
         self.isMoving = False
 
+        # Menü erstellen
+
+        self.createMenu()
+        
         # Kameraeinstellungen
         
         base.disableMouse()
-        base.camera.setPos(self.spieler.getX(),self.spieler.getY()+10,2)
+        base.camera.setPos(self.spieler.actor.getX(),self.spieler.actor.getY()+10,2)
         
         # Kollisionserkennung, um auf dem Boden zu laufen. Der Collisionray
         # erkennt die Hoehe des Gelaendes und wenn ein Objekt da ist, wird 
@@ -79,7 +106,7 @@ class World(DirectObject):
         self.spielerGroundCol.addSolid(self.spielerGroundRay)
         self.spielerGroundCol.setFromCollideMask(BitMask32.bit(0))
         self.spielerGroundCol.setIntoCollideMask(BitMask32.allOff())
-        self.spielerGroundColNp = self.spieler.attachNewNode(self.spielerGroundCol)
+        self.spielerGroundColNp = self.spieler.actor.attachNewNode(self.spielerGroundCol)
         self.spielerGroundHandler = CollisionHandlerQueue()
         self.cTrav.addCollider(self.spielerGroundColNp, self.spielerGroundHandler)
 
@@ -94,6 +121,18 @@ class World(DirectObject):
         self.camGroundHandler = CollisionHandlerQueue()
         self.cTrav.addCollider(self.camGroundColNp, self.camGroundHandler)
 
+        self.gegnerGroundRay = CollisionRay()
+        self.gegnerGroundRay.setOrigin(0,0,1000)
+        self.gegnerGroundRay.setDirection(0,0,-1)
+        self.gegnerGroundCol = CollisionNode('gegnerRay')
+        self.gegnerGroundCol.addSolid(self.gegnerGroundRay)
+        self.gegnerGroundCol.setFromCollideMask(BitMask32.bit(0))
+        self.gegnerGroundCol.setIntoCollideMask(BitMask32.allOff())
+        self.gegnerGroundColNp = self.gegner.actor.attachNewNode(self.gegnerGroundCol)
+        self.gegnerGroundHandler = CollisionHandlerQueue()
+        self.cTrav.addCollider(self.gegnerGroundColNp, self.gegnerGroundHandler)
+
+        self.setAI()
         
         # Licht
         ambientLight = AmbientLight("ambientLight")
@@ -104,43 +143,74 @@ class World(DirectObject):
         directionalLight.setSpecularColor(Vec4(1, 1, 1, 1))
         render.setLight(render.attachNewNode(ambientLight))
         render.setLight(render.attachNewNode(directionalLight))
-    
+
+        # Hintergrund (Himmel)
+
+        self.setupSkySphere()
+
+    def setupSkySphere(self):
+        self.skysphere = loader.loadModel("models/LinearPinkSkySphere.bam")
+        #Load the texture for the sky.
+        self.sky_tex = loader.loadTexture("Images/Sterne.jpg")
+        #Set the sky texture to the sky model
+        self.skysphere.setTexture(self.sky_tex, 1)
+	self.skysphere.setBin('background', 1) 
+        self.skysphere.setDepthWrite(0) 
+        self.skysphere.reparentTo(render)
+        self.skysphere.setScale(40)
+        taskMgr.add(self.skysphereTask, "SkySphere Task") 
+
+    def skysphereTask(self, task): 
+        self.skysphere.setPos(base.camera, 0, 0, 0) 
+        return task.cont
+
+    def createMenu(self):
+        self.createFrame()
+        itemListe = self.spieler.inventar.anzeigen(1)
+        standardpos = [0.18, 0.98, 0.83]
+        self.buttonListe = []
+        beutelLabel = DirectLabel(text = itemListe[0][0], pos = (0.18, 0.98, 0.95), scale = 0.07, text_fg = (1,0,0,1), text_bg = (0, 50, 50, 1), textMayChange = 1)
+        del itemListe [0][0]
+        for zeile in itemListe:
+            for i in range(0,5):
+                testButton = DirectButton(text = zeile [i], pos = standardpos, scale = 0.07, text_fg = (1,0,0,1), text_bg = (0, 50, 50, 1), textMayChange = 1)
+                self.buttonListe.append (testButton)
+                standardpos[0] += 0.25
+            standardpos[0] = 0.18    
+            standardpos[2] -= 0.15
+            
+    def createFrame(self):
+        self.myFrame = DirectFrame(frameColor=(0, 50, 50, 0.5),
+                      frameSize=(-1, 1, -.7, 1),
+                      pos=(1, -1, 1))
+        
     # Erkennt den Status der Eingabe
     def setKey(self, key, value):
         self.keyMap[key] = value
-    
 
-    # Mit den Pfeiltasten kann der Spieler bewegt werden
-    def move(self, task):
+    def screentexts(self,task):
+        self.textObjectSpieler.destroy()
+        self.textObjectSpieler = OnscreenText(text = self.spieler.name+":  "+str(self.spieler.energie)+"/"+str(self.spieler.maxenergie)+" HP", pos = (-0.90, -0.98), scale = 0.07, fg = (1,0,0,1))
+        self.textObjectGegner.destroy()
+        if self.kampf == True:
+            self.textObjectGegner = OnscreenText(text = str(self.gegner.name)+": "+str(self.gegner.energie)+"/"+str(self.gegner.maxenergie)+" HP", pos = (0.90, -0.98), scale = 0.07, fg = (1,0,0,1))
+        else:
+            self.textObjectGegner = OnscreenText(text = "Kein Gegner vorhanden", pos = (0.90, -0.98), scale = 0.07, fg = (1,0,0,1))
+        return Task.cont
 
-        # cam-left Key: Kamera nach links
+    def camera(self):
+         # cam-left Key: Kamera nach links
         # cam-right Key: Kamera nach rechts
-        base.camera.lookAt(self.spieler)
+        base.camera.lookAt(self.spieler.actor)
         if (self.keyMap["cam-left"]!=0):
             base.camera.setX(base.camera, -20 * globalClock.getDt())
         if (self.keyMap["cam-right"]!=0):
             base.camera.setX(base.camera, +20 * globalClock.getDt())
 
-        # Speichert die Startposition, damit der Spieler zurueckgesetzt
-        # werden kann, sollte er irgendwo runterfallen
-
-        startpos = self.spieler.getPos()
-
-        # Wenn einer der Move Keys gedrueckt wird, wird der Spieler
-        # in die ensprechende Richtung bewegt
-
-        if (self.keyMap["left"]!=0):
-            self.spieler.setH(self.spieler.getH() + 150 * globalClock.getDt())
-        if (self.keyMap["right"]!=0):
-            self.spieler.setH(self.spieler.getH() - 150 * globalClock.getDt())
-        if (self.keyMap["forward"]!=0):
-            self.spieler.setY(self.spieler, -12 * globalClock.getDt())
-
-
         # Wenn die Kamera zu weit weg ist, zoom heran.
         # Wenn die Kamera zu nah dran ist, zoom weg.
 
-        camvec = self.spieler.getPos() - base.camera.getPos()
+        camvec = self.spieler.actor.getPos() - base.camera.getPos()
         camvec.setZ(0)
         camdist = camvec.length()
         camvec.normalize()
@@ -150,6 +220,43 @@ class World(DirectObject):
         if (camdist < 5.0):
             base.camera.setPos(base.camera.getPos() - camvec*(5-camdist))
             camdist = 5.0
+
+        # Haelt die Kamera einen Schritt über dem Boden
+        # oder zwei Schritte ueber dem Spieler, je nachdem, was groesser ist.
+        
+        entries = []
+        for i in range(self.camGroundHandler.getNumEntries()):
+            entry = self.camGroundHandler.getEntry(i)
+            entries.append(entry)
+        entries.sort(lambda x,y: cmp(y.getSurfacePoint(render).getZ(),
+                                     x.getSurfacePoint(render).getZ()))
+        if (len(entries)>0) and (entries[0].getIntoNode().getName() == "terrain"):
+            base.camera.setZ(entries[0].getSurfacePoint(render).getZ()+1.0)
+        if (base.camera.getZ() < self.spieler.actor.getZ() + 2.0):
+            base.camera.setZ(self.spieler.actor.getZ() + 2.0)
+            
+        # Die Kamera soll in die Richtung des Spielers gucken, aber auch
+        # immer horizontal bleiben.
+        
+        self.floater.setPos(self.spieler.actor.getPos())
+        self.floater.setZ(self.spieler.actor.getZ() + 2.0)
+        base.camera.lookAt(self.floater)
+
+    def collisions(self):
+        
+        # Überprüfen auf Itemkollision
+        
+        if self.item <> None:
+            if (self.item.actor.getX() - self.spieler.actor.getX() < 1
+            and self.item.actor.getY() - self.spieler.actor.getY() < 1
+            and self.item.actor.getZ() - self.spieler.actor.getZ() <1
+            and self.itemDa == True):
+                self.itemDa = False
+                self.item.actor.detachNode()
+                self.spieler.inventar.einfuegen(self.item)
+                self.myFrame.destroy()
+                del self.buttonListe[:]
+                self.createMenu()
 
         # Start der Kollisionserkennung
 
@@ -165,34 +272,137 @@ class World(DirectObject):
         entries.sort(lambda x,y: cmp(y.getSurfacePoint(render).getZ(),
                                      x.getSurfacePoint(render).getZ()))
         if (len(entries)>0) and (entries[0].getIntoNode().getName() == "terrain"):
-            self.spieler.setZ(entries[0].getSurfacePoint(render).getZ())
+            self.spieler.actor.setZ(entries[0].getSurfacePoint(render).getZ())
         else:
-            self.spieler.setPos(startpos)
+            self.spieler.actor.setPos(startpos)   
 
-        # Haelt die Kamera einen Schritt über dem Boden
-        # oder zwei Schritte ueber dem Spieler, je nachdem, was groesser ist.
+    
+    def move(self,task):
+
+        self.camera();
+        self.collisions();
         
+        # Speichert die Startposition, damit der Spieler zurueckgesetzt
+        # werden kann, sollte er irgendwo runterfallen
+
+        startpos = self.spieler.actor.getPos()
+
+        # Wenn einer der Move Keys gedrueckt wird, wird der Spieler
+        # in die ensprechende Richtung bewegt
+
+        if (self.keyMap["left"]!=0):
+            self.spieler.actor.setH(self.spieler.actor.getH() + 150 * globalClock.getDt())
+        if (self.keyMap["right"]!=0):
+            self.spieler.actor.setH(self.spieler.actor.getH() - 150 * globalClock.getDt())
+        if (self.keyMap["forward"]!=0):
+            self.spieler.actor.setY(self.spieler.actor, -12 * globalClock.getDt())
+
+        return Task.cont
+
+    def gegnermove(self):
+ 
+        # Zeit seit dem letzten Frame. Benötigt fuer
+        # framerateunabhaengige Bewegung.
+        elapsed = globalClock.getDt()
+
+        startpos = self.gegner.actor.getPos()
+ 
+        # Aendert die Z Koordinate des Gegners. Wenn er etwas trifft, bewegt
+        # ihn entsprechend, wenn er nichts trifft, setzt die Koordinate 
+        # auf den Stand des letzten Frames
+ 
+        self.cTrav.traverse(render)
+ 
         entries = []
-        for i in range(self.camGroundHandler.getNumEntries()):
-            entry = self.camGroundHandler.getEntry(i)
+        for i in range(self.gegnerGroundHandler.getNumEntries()):
+            entry = self.gegnerGroundHandler.getEntry(i)
             entries.append(entry)
         entries.sort(lambda x,y: cmp(y.getSurfacePoint(render).getZ(),
                                      x.getSurfacePoint(render).getZ()))
         if (len(entries)>0) and (entries[0].getIntoNode().getName() == "terrain"):
-            base.camera.setZ(entries[0].getSurfacePoint(render).getZ()+1.0)
-        if (base.camera.getZ() < self.spieler.getZ() + 2.0):
-            base.camera.setZ(self.spieler.getZ() + 2.0)
-            
-        # Die Kamera soll in die Richtung des Spielers gucken, aber auch
-        # immer horizontal bleiben.
+            self.gegner.actor.setZ(entries[0].getSurfacePoint(render).getZ())
+        else:
+            self.gegner.actor.setPos(startpos)
+
+ 
+        self.gegner.actor.setP(0)
+        if self.gegner.energie == 0:
+            return Task.done
+        else:
+            return Task.cont
         
-        self.floater.setPos(self.spieler.getPos())
-        self.floater.setZ(self.spieler.getZ() + 2.0)
-        base.camera.lookAt(self.floater)
+    def setAI(self):
+        # Erstellt die AI World
+        self.AIworld = AIWorld(render)
+ 
+        self.AIchar = AICharacter("gegner",self.gegner.actor, 100, 0.02, 1)
+        self.AIworld.addAiChar(self.AIchar)
+        self.AIbehaviors = self.AIchar.getAiBehaviors()
+ 
+        self.AIbehaviors.wander(360, 0, 10, 1.0)
+ 
+        #AI World update zum Tasknamager hinzufügen       
+        taskMgr.add(self.AIUpdate,"AIUpdate")
+ 
+ 
+    # Update der AI World   
+    def AIUpdate(self,task):
+        if self.kampf == False:
+            self.AIworld.update()
+            self.gegnermove()
+ 
+        return Task.cont
 
-        return task.cont
+    # Startet bei einem Abstand von 4 zwischen Spieler und Gegner einen Kampf
+    def erkenneKampf(self,task):
+        if (self.spieler.actor.getX() - self.gegner.actor.getX() < 4
+        and self.spieler.actor.getX() - self.gegner.actor.getX() > -4
+        and self.kampf == False):
+            self.kampf = True
+            self.startzeit = globalClock.getLongTime()
+        if self.kampf == True:
+            self.Kampf(self)
+        if self.gegner.energie == 0:
+            return Task.done
+        else:
+            return Task.cont
 
+    def gegnerTod(self):
+        self.kampf = False
+        itemPos = self.gegner.actor.getPos()
+        self.gegner.actor.detachNode()
+        self.item = Items.Schwert()
+        self.itemDa = True
+        self.item.actor.setScale(0.3)
+        self.item.actor.reparentTo(render)
+        self.item.actor.setPos(itemPos)
+        self.gegner = Monster.Goblin(Actor("models/box.x"))
+        self.gegner.actor.reparentTo(render)
+        gegnerNeuPos = random.choice(self.gegnerStartPos)
+        while gegnerNeuPos == self.gegnerAltPos:
+            gegnerNeuPos = random.choice(self.gegnerStartPos)
+        self.gegner.actor.setPos(gegnerNeuPos)
+        self.gegnerAltPos = gegnerNeuPos
+        self.setAI()
 
+    # Lässt Spieler und Gegner nach bestimmter Zeit Aktionen ausführen. Bei Tod des
+    # Gegners wird ein neuer Gegner sowie ein Item generiert
+    def Kampf(self,task):
+        if ((int(globalClock.getLongTime()) - int(self.startzeit)) % 5 == 0
+        and self.kampf == True):
+            erg = Battle.Kampf(self.spieler,self.gegner)
+            self.spieler = erg[0]
+            self.gegner = erg[1]
+            self.kampf = erg[2]
+            self.startzeit -= 1
+            if self.spieler.energie == 0:
+                sys.exit
+            elif self.gegner.energie == 0:
+                self.gegnerTod();
+        if self.startzeit <= 0:
+            self.startzeit = globalClock.getLongTime()
+            
+        
 w = World()
 run()
 

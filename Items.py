@@ -1,3 +1,5 @@
+from direct.actor.Actor import Actor
+
 class Schwert():
     """ Erstellt ein Item vom Typ Schwert"""
     def __init__(self):
@@ -8,6 +10,7 @@ class Schwert():
         zeile2 = [1]
         self.spalte = [zeile1,zeile2]
         self.stapelbar = False
+        self.actor = Actor("models/box.x")
         self.angriff = 4
         
         
@@ -20,6 +23,7 @@ class Dolch():
         zeile1 = [1]
         self.spalte = [zeile1]
         self.stapelbar = False
+        self.actor = Actor("models/box.x")
         self.angriff = 2
     
 class Axt():
@@ -33,6 +37,7 @@ class Axt():
         zeile3 = [0,1]
         self.spalte = [zeile1,zeile2,zeile3]
         self.stapelbar = False
+        self.actor = Actor("models/box.x")
         self.angriff = 5
     
 class Ruestung():
@@ -45,6 +50,7 @@ class Ruestung():
         zeile2 = [0,1]
         self.spalte = [zeile1,zeile2]
         self.stapelbar = False
+        self.actor = Actor("models/box.x")
         self.verteidigung = 5
 
             
@@ -58,6 +64,7 @@ class Hose():
         zeile2 = [1]
         self.spalte = [zeile1,zeile2]
         self.stapelbar = False
+        self.actor = Actor("models/box.x")
         self.verteidigung = 3
             
 class Handschuhe():
@@ -69,6 +76,7 @@ class Handschuhe():
         zeile1 = [1]
         self.spalte = [zeile1]
         self.stapelbar = False
+        self.actor = Actor("models/box.x")
         self.verteidigung = 2
             
 class Heiltrank():
@@ -80,6 +88,7 @@ class Heiltrank():
         zeile1 = [1]
         self.spalte = [zeile1]
         self.stapelbar = True
+        self.actor = Actor("models/box.x")
         self.anzahl = 1
         self.maxanzahl = 20
         self.wert = 20
@@ -105,6 +114,7 @@ class Schriftrolle():
         self.name = "Schriftrolle"
         zeile1 = [1]
         self.spalte = [zeile1]
+        self.actor = Actor("models/box.x")
         self.stapelbar = True
         self.anzahl = 1
         self.maxanzahl = 20
@@ -118,4 +128,5 @@ class Nichts():
         zeile1 = [1]
         self.spalte = [zeile1]
         self.stapelbar = False
+        self.actor = Actor("models/box.x")
         self.wert = 0

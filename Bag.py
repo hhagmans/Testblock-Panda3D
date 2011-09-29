@@ -38,6 +38,7 @@ class Tasche ():
             self.inhalt[altNr-1].einfuegen(item,altpos,vs)
             
     def verschiebenS(self,altNr,neuNr,altpos,neupos):
+        """Verschieben des Items von altpos in Beutel altNr nach neupos in Beutel neuNr fuer stapelbare Items""" 
         vs = True
         item = self.inhalt[altNr-1].getItem(altpos)
         self.inhalt[altNr-1].spalte [altpos[0]][altpos[1]] = 0
@@ -66,24 +67,26 @@ class Tasche ():
                 i += 1
         return i
                 
-    def anzeigen(self):      
-        for beutel in self.inhalt:
-            print "\n"
-            liste = []
-            i = 0
-            for zeile in beutel.spalte:
-                for i in range(0,5):
-                    item = zeile [i]
-                    if item <> 0:
-                        if item.stapelbar:
-                            Text = "ID%i %s x%i" %(item.ID,item.name,item.anzahl)
-                        else:
-                            Text = "ID%i %s" %(item.ID,item.name)
-                        liste.append(Text)
+    def anzeigen(self,Nr):      
+        """gibt Liste mit gerenderten Grafiken der Items im Beutel zeilenweise zurueck"""
+        erg = []                                                
+        Text1 = "Beutel Nr: %i" %Nr   
+        liste = [Text1]        
+        beutel = self.inhalt[Nr-1]
+        for zeile in beutel.spalte:
+            for i in range(0,5):
+                item = zeile [i]
+                if item <> 0:
+                    if item.stapelbar:
+                        Text = "%s x%i" %(item.name,item.anzahl)
                     else:
-                        liste.append(item)
-                print liste
-                liste = []
+                        Text = "%s" %(item.name)
+                    liste.append(Text)
+                else:
+                    liste.append("leer")
+            erg.append(liste)
+            liste = []
+        return erg
        
 class Beutel ():
     """Erstellt Objekt mit einer Liste, die die Anzahl Zeilen, die uebergeben werden, als weitere Listen enthaelt"""

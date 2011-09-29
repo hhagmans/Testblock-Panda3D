@@ -12,7 +12,7 @@ class Player():
         self.verteidigung = 5
         self.geschicklichkeit = 5
         self.tempo = 5
-        self.inventar = Bag.Tasche(20,20,20,20)
+        self.inventar = Bag.Tasche(4,4,4,4)
         self.waffe = Items.Nichts()
         self.ruestung = Items.Nichts()
         self.hose = Items.Nichts()
