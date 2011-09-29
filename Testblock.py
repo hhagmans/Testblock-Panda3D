@@ -25,7 +25,7 @@ class World(DirectObject):
         self.iAktion = "E"
         self.altIPos = [0,0]
         self.switchCam = False
-        self.kampf = False
+        self.kampf = Battle.Kampf()
         self.itemDa = False
         self.keyMap = {"left":0, "right":0, "forward":0, "cam-left":0, "cam-right":0}
         base.win.setClearColor(Vec4(0,0,0,1))
@@ -190,11 +190,10 @@ class World(DirectObject):
         self.buttonListe = []
         beutelLabel = DirectLabel(text = itemListe[0][0], pos = (0.18, 0.98, 0.95), scale = 0.07, text_fg = (1,0,0,1), text_bg = (0, 50, 50, 1), textMayChange = 1)
         del itemListe [0][0]
-        aktZeile = 0
-        for zeile in itemListe:
+        for zeile in range(4):
             for i in range(0,5):
-                testButton = DirectButton(text = zeile [i], pos = standardpos, scale = 0.07, text_fg = (1,0,0,1), text_bg = (0, 50, 50, 1), textMayChange = 1, extraArgs = [aktZeile,i], command = self.inventarAktion)
-                self.buttonListe.append (testButton)
+                Button = DirectButton(text = itemListe [zeile] [i], pos = standardpos, scale = 0.07, text_fg = (1,0,0,1), text_bg = (0, 50, 50, 1), textMayChange = 1, extraArgs = [zeile,i], command = self.inventarAktion)
+                self.buttonListe.append (Button)
                 standardpos[0] += 0.25
             standardpos[0] = 0.18    
             standardpos[2] -= 0.15
@@ -207,12 +206,22 @@ class World(DirectObject):
     def inventarAktion(self,zeile,spalte):
         if self.iAktion == "E":
             self.spieler.inventar.entfernen(1,[zeile,spalte])
+            self.myFrame.destroy()
+            i = 0
+            for item in self.buttonListe:
+                    self.buttonListe [i].destroy()
+                    i += 1
             del self.buttonListe[:]
-            self.createMenu()
+            self.createMenu()  
         elif self.iAktion == "W":
             self.altIPos = [zeile,spalte]
         elif self.iAktion == "V":
             self.spieler.inventar.verschieben(1,1,self.altIPos,[zeile,spalte])
+            self.myFrame.destroy()
+            i = 0
+            for item in self.buttonListe:
+                    self.buttonListe [i].destroy()
+                    i += 1
             del self.buttonListe[:]
             self.createMenu()        
         
@@ -225,7 +234,7 @@ class World(DirectObject):
         self.textObjectSpieler.destroy()
         self.textObjectSpieler = OnscreenText(text = self.spieler.name+":  "+str(self.spieler.energie)+"/"+str(self.spieler.maxenergie)+" HP", pos = (-0.90, -0.98), scale = 0.07, fg = (1,0,0,1))
         self.textObjectGegner.destroy()
-        if self.kampf == True:
+        if self.kampf.active == True:
             self.textObjectGegner = OnscreenText(text = str(self.gegner.name)+": "+str(self.gegner.energie)+"/"+str(self.gegner.maxenergie)+" HP", pos = (0.90, -0.98), scale = 0.07, fg = (1,0,0,1))
         else:
             self.textObjectGegner = OnscreenText(text = "Kein Gegner vorhanden", pos = (0.90, -0.98), scale = 0.07, fg = (1,0,0,1))
@@ -391,10 +400,10 @@ class World(DirectObject):
     def erkenneKampf(self,task):
         if (self.spieler.actor.getX() - self.gegner.actor.getX() < 4
         and self.spieler.actor.getX() - self.gegner.actor.getX() > -4
-        and self.kampf == False):
-            self.kampf = True
+        and self.kampf.active == False):
+            self.kampf.active = True
             self.startzeit = globalClock.getLongTime()
-        if self.kampf == True:
+        if self.kampf.active == True:
             self.Kampf(self)
         if self.gegner.energie == 0:
             return Task.done
@@ -402,7 +411,7 @@ class World(DirectObject):
             return Task.cont
 
     def gegnerTod(self):
-        self.kampf = False
+        self.kampf.active = False
         itemPos = self.gegner.actor.getPos()
         self.gegner.actor.detachNode()
         self.item = Items.Schwert()
@@ -423,11 +432,10 @@ class World(DirectObject):
     # Gegners wird ein neuer Gegner sowie ein Item generiert
     def Kampf(self,task):
         if ((int(globalClock.getLongTime()) - int(self.startzeit)) % 5 == 0
-        and self.kampf == True):
-            erg = Battle.Kampf(self.spieler,self.gegner)
+        and self.kampf.active == True):
+            erg = self.kampf.Kampf(self.spieler,self.gegner)
             self.spieler = erg[0]
             self.gegner = erg[1]
-            self.kampf = erg[2]
             self.startzeit -= 1
             if self.spieler.energie == 0:
                 sys.exit

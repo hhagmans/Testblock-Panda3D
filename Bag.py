@@ -34,11 +34,14 @@ class Tasche ():
         """Verschieben des Items von altpos in Beutel altNr nach neupos in Beutel neuNr"""
         vs = False
         item = self.inhalt[altNr-1].getItem(altpos)
-        self.inhalt[altNr-1].entfernen(altpos)
-        if self.inhalt[neuNr-1].itemProbe(neupos,item,self.inhalt[neuNr-1]) == True:
-            self.inhalt[neuNr-1].einfuegen(item,neupos,vs)
-        else:
-            self.inhalt[altNr-1].einfuegen(item,altpos,vs)
+        try:
+            self.inhalt[altNr-1].entfernen(altpos)
+            if self.inhalt[neuNr-1].itemProbe(neupos,item,self.inhalt[neuNr-1]) == True:
+                self.inhalt[neuNr-1].einfuegen(item,neupos,vs)
+            else:
+                self.inhalt[altNr-1].einfuegen(item,altpos,vs)
+        except:
+            print "Kein Item ausgewaehlt"
             
     def verschiebenS(self,altNr,neuNr,altpos,neupos):
         """Verschieben des Items von altpos in Beutel altNr nach neupos in Beutel neuNr fuer stapelbare Items""" 
